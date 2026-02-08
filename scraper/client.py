@@ -1,6 +1,7 @@
 """HTTP client factory for Xueqiu API requests."""
 
 import httpx
+from loguru import logger
 
 BASE_URL = "https://xueqiu.com"
 
@@ -20,6 +21,9 @@ DEFAULT_HEADERS = {
 def create_client(cookie: str, timeout: float = 30.0) -> httpx.Client:
     """Create an httpx client configured for Xueqiu.
 
+    Visits the homepage first to collect WAF session cookies (e.g.
+    ``acw_tc``), then sets the ``xq_a_token`` auth cookie on top.
+
     Args:
         cookie: The ``xq_a_token`` cookie value.
         timeout: Request timeout in seconds.
@@ -28,10 +32,21 @@ def create_client(cookie: str, timeout: float = 30.0) -> httpx.Client:
         A configured httpx.Client instance. Caller is responsible for
         closing it (use as context manager).
     """
-    return httpx.Client(
+    client = httpx.Client(
         base_url=BASE_URL,
         headers=DEFAULT_HEADERS,
-        cookies={"xq_a_token": cookie},
         timeout=timeout,
         follow_redirects=True,
     )
+
+    # Visit homepage to collect WAF/session cookies
+    try:
+        client.get("/")
+        logger.debug("Session cookies: {}", dict(client.cookies))
+    except httpx.RequestError as exc:
+        logger.warning("Failed to fetch homepage for session cookies: {}", exc)
+
+    # Set the auth cookie
+    client.cookies.set("xq_a_token", cookie, domain="xueqiu.com")
+
+    return client

@@ -1,5 +1,7 @@
 """Xueqiu API endpoint wrappers."""
 
+import json
+
 import httpx
 from loguru import logger
 
@@ -33,7 +35,8 @@ def fetch_article_list(
         params={"user_id": user_id, "page": page, "count": count},
     )
     resp.raise_for_status()
-    return ArticleListResponse.model_validate(resp.json())
+    data = _parse_json(resp)
+    return ArticleListResponse.model_validate(data)
 
 
 def fetch_article_page(
@@ -79,7 +82,8 @@ def fetch_comments(
         params={"id": article_id, "count": count, "page": page, "asc": "false"},
     )
     resp.raise_for_status()
-    return CommentsResponse.model_validate(resp.json())
+    data = _parse_json(resp)
+    return CommentsResponse.model_validate(data)
 
 
 def fetch_all_author_comments(
@@ -126,6 +130,42 @@ def fetch_all_author_comments(
     return author_comments
 
 
+def _parse_json(resp: httpx.Response) -> dict:
+    """Parse JSON from an API response with clear error messages.
+
+    Xueqiu may return HTML instead of JSON when the WAF blocks
+    the request or the auth cookie is invalid/expired.
+
+    Args:
+        resp: httpx response object.
+
+    Returns:
+        Parsed JSON dict.
+
+    Raises:
+        RuntimeError: If the response is not valid JSON.
+    """
+    content_type = resp.headers.get("content-type", "")
+    if "json" not in content_type and "text/html" in content_type:
+        snippet = resp.text[:200]
+        logger.error("API returned HTML instead of JSON: {}", snippet)
+        raise RuntimeError(
+            "API returned HTML instead of JSON. "
+            "Cookie may be expired or invalid. "
+            "Run 'python -m scraper check-auth' to verify."
+        )
+
+    try:
+        return resp.json()
+    except json.JSONDecodeError as exc:
+        snippet = resp.text[:200]
+        logger.error("Failed to parse JSON response: {} body={}", exc, snippet)
+        raise RuntimeError(
+            f"API returned non-JSON response (status {resp.status_code}). "
+            "Cookie may be expired or invalid."
+        ) from exc
+
+
 def check_auth(client: httpx.Client, user_id: int) -> bool:
     """Verify the cookie is valid by making a small API request.
 
@@ -144,4 +184,7 @@ def check_auth(client: httpx.Client, user_id: int) -> bool:
         return False
     except httpx.RequestError as exc:
         logger.error("Auth check request error: {}", exc)
+        return False
+    except RuntimeError as exc:
+        logger.error("Auth check failed: {}", exc)
         return False
