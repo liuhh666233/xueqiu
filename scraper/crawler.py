@@ -144,13 +144,19 @@ def _fetch_full_article(
     content_html = detail.get("text", "")
     content_md = html_to_markdown(content_html)
 
-    # Fetch author's supplementary notes
-    author_comments = fetch_all_author_comments(
-        client,
-        summary.id,
-        user_id,
-        request_delay=config.request_delay,
-    )
+    # Fetch author's supplementary notes (non-fatal if it fails)
+    try:
+        author_comments = fetch_all_author_comments(
+            client,
+            summary.id,
+            user_id,
+            request_delay=config.request_delay,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to fetch comments for article {}: {}", summary.id, exc
+        )
+        author_comments = []
 
     return ArticleFull(
         id=summary.id,
