@@ -1,0 +1,15 @@
+[Unit]
+Description=Xueqiu Article Scraper
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/lxb/github/xueqiu
+Environment=XUEQIU_COOKIE=%h/.config/xueqiu/cookie
+ExecStart=/usr/bin/env nix develop --command python -m scraper sync
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

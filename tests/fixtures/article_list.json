@@ -1,0 +1,39 @@
+{
+  "total": 2,
+  "page": 1,
+  "maxPage": 1,
+  "list": [
+    {
+      "id": 300000001,
+      "title": "测试文章标题一",
+      "description": "这是第一篇测试文章的描述",
+      "created_at": 1705276200000,
+      "user_id": 2426670165,
+      "user": {
+        "id": 2426670165,
+        "screen_name": "测试用户"
+      },
+      "view_count": 1500,
+      "like_count": 42,
+      "reply_count": 10,
+      "retweet_count": 5,
+      "target": "/2426670165/300000001"
+    },
+    {
+      "id": 300000002,
+      "title": "测试文章标题二",
+      "description": "这是第二篇测试文章的描述",
+      "created_at": 1705189800000,
+      "user_id": 2426670165,
+      "user": {
+        "id": 2426670165,
+        "screen_name": "测试用户"
+      },
+      "view_count": 800,
+      "like_count": 20,
+      "reply_count": 3,
+      "retweet_count": 1,
+      "target": "/2426670165/300000002"
+    }
+  ]
+}

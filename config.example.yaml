@@ -1,0 +1,20 @@
+# Xueqiu Scraper Configuration
+# Copy this file to config.yaml and fill in your cookie value.
+
+# xq_a_token cookie from your browser (required)
+cookie: "your_xq_a_token_here"
+
+# Xueqiu user ID to scrape
+user_id: 2426670165
+
+# Directory to store downloaded articles
+data_dir: "data/articles"
+
+# Delay between HTTP requests in seconds
+request_delay: 2.0
+
+# Articles per page when listing
+page_size: 10
+
+# Maximum number of list pages to fetch (0 = all)
+max_pages: 0

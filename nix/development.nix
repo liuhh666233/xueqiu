@@ -49,6 +49,10 @@ in {
           # Web Application
           fastapi
           uvicorn
+
+          # Scraper
+          httpx
+          lxml
         ]));
 
     in pkgs-dev.mkShell.override {

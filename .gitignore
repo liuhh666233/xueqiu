@@ -171,6 +171,10 @@ cython_debug/
 .pypirc
 
 
+# Scraper data and config
+data/
+config.yaml
+
 # node
 node_modules/
 dist/
