@@ -30,6 +30,10 @@ class ScraperConfig(BaseModel):
         default=0,
         description="Maximum pages to fetch. 0 means all pages.",
     )
+    skip_comments: bool = Field(
+        default=False,
+        description="Skip fetching author comments during sync.",
+    )
 
 
 def load_config(

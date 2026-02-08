@@ -208,21 +208,25 @@ def _fetch_full_article(
     content_md = html_to_markdown(content_html)
 
     # Fetch author's supplementary notes (non-fatal if it fails)
-    try:
-        author_comments = fetch_all_author_comments(
-            client,
-            summary.id,
-            user_id,
-            request_delay=config.request_delay,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Failed to fetch comments for article {}: {}", summary.id, exc
-        )
+    if config.skip_comments:
         author_comments = []
         comments_failed = True
     else:
-        comments_failed = False
+        try:
+            author_comments = fetch_all_author_comments(
+                client,
+                summary.id,
+                user_id,
+                request_delay=config.request_delay,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch comments for article {}: {}", summary.id, exc
+            )
+            author_comments = []
+            comments_failed = True
+        else:
+            comments_failed = False
 
     return ArticleFull(
         id=summary.id,

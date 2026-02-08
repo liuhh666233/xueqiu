@@ -34,7 +34,18 @@ def main() -> None:
     default=0,
     help="Maximum number of list pages to fetch (0 = all).",
 )
-def sync(cookie: str | None, config_path: str | None, max_pages: int) -> None:
+@click.option(
+    "--skip-comments",
+    is_flag=True,
+    default=False,
+    help="Skip fetching author comments (can backfill later).",
+)
+def sync(
+    cookie: str | None,
+    config_path: str | None,
+    max_pages: int,
+    skip_comments: bool,
+) -> None:
     """Download all new articles (incremental sync)."""
     from pathlib import Path
 
@@ -51,6 +62,9 @@ def sync(cookie: str | None, config_path: str | None, max_pages: int) -> None:
 
     if max_pages:
         cfg.max_pages = max_pages
+
+    if skip_comments:
+        cfg.skip_comments = True
 
     with create_client(cfg.cookie) as client:
         count = sync_articles(client, cfg)
