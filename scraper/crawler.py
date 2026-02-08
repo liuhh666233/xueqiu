@@ -15,7 +15,6 @@ from scraper.content import html_to_markdown
 from scraper.models import (
     ArticleFull,
     ArticleSummary,
-    SyncManifest,
     SyncManifestEntry,
 )
 from scraper.storage import (
@@ -26,10 +25,12 @@ from scraper.storage import (
 
 
 def sync_articles(client: httpx.Client, config: ScraperConfig) -> int:
-    """Download all new articles for the configured user.
+    """Download all new articles for the configured user, one page at a time.
 
-    Loads the sync manifest, paginates through the article list,
-    skips already-downloaded articles, and saves new ones.
+    Processes each page of the article list immediately: fetches the list page,
+    downloads any new articles found on it, and saves the manifest before
+    moving to the next page. This spreads requests evenly and allows resuming
+    from any point.
 
     Args:
         client: Configured httpx client.
@@ -40,22 +41,35 @@ def sync_articles(client: httpx.Client, config: ScraperConfig) -> int:
     """
     manifest = load_manifest(config.data_dir)
     manifest.user_id = config.user_id
-
-    articles = _collect_new_articles(client, config, manifest)
-    if not articles:
-        logger.info("No new articles to download")
-        save_manifest(config.data_dir, manifest)
-        return 0
-
-    logger.info("Found {} new articles to download", len(articles))
     downloaded = 0
+    page = 1
+    # Detail endpoint has stricter WAF limits than the list endpoint,
+    # so use a longer delay before each article fetch.
+    detail_delay = config.request_delay * 3
 
-    try:
-        for i, summary in enumerate(articles, 1):
+    while True:
+        logger.debug("Fetching article list page {}", page)
+        resp = fetch_article_list(
+            client,
+            config.user_id,
+            page=page,
+            count=config.page_size,
+        )
+
+        new_on_page = [a for a in resp.articles if not manifest.has_article(a.id)]
+
+        if new_on_page:
             logger.info(
-                "[{}/{}] Fetching: {} ({})",
+                "Page {}: {} new article(s) to download", page, len(new_on_page)
+            )
+
+        for i, summary in enumerate(new_on_page, 1):
+            time.sleep(detail_delay)
+            logger.info(
+                "[page {} {}/{}] Fetching: {} ({})",
+                page,
                 i,
-                len(articles),
+                len(new_on_page),
                 summary.title,
                 summary.id,
             )
@@ -89,47 +103,8 @@ def sync_articles(client: httpx.Client, config: ScraperConfig) -> int:
                     exc,
                 )
 
-            # Rate limiting between articles
-            if i < len(articles):
-                time.sleep(config.request_delay)
-    finally:
-        # Always save manifest to preserve progress
+        # Save manifest after each page to preserve progress
         save_manifest(config.data_dir, manifest)
-
-    logger.info("Downloaded {} new articles", downloaded)
-    return downloaded
-
-
-def _collect_new_articles(
-    client: httpx.Client,
-    config: ScraperConfig,
-    manifest: SyncManifest,
-) -> list[ArticleSummary]:
-    """Paginate through the article list and collect IDs not yet in the manifest.
-
-    Args:
-        client: Configured httpx client.
-        config: Scraper configuration.
-        manifest: Current sync manifest.
-
-    Returns:
-        List of article summaries to download.
-    """
-    new_articles: list[ArticleSummary] = []
-    page = 1
-
-    while True:
-        logger.debug("Fetching article list page {}", page)
-        resp = fetch_article_list(
-            client,
-            config.user_id,
-            page=page,
-            count=config.page_size,
-        )
-
-        for article in resp.articles:
-            if not manifest.has_article(article.id):
-                new_articles.append(article)
 
         if page >= resp.maxPage or not resp.articles:
             break
@@ -139,9 +114,9 @@ def _collect_new_articles(
             break
 
         page += 1
-        time.sleep(config.request_delay)
 
-    return new_articles
+    logger.info("Downloaded {} new articles", downloaded)
+    return downloaded
 
 
 def _fetch_full_article(

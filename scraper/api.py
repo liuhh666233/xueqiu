@@ -6,8 +6,8 @@ import time
 import httpx
 from loguru import logger
 
-MAX_RETRIES = 3
-RETRY_BASE_DELAY = 10.0
+MAX_RETRIES = 5
+RETRY_BASE_DELAY = 30.0
 
 from scraper.models import (
     ArticleListResponse,
