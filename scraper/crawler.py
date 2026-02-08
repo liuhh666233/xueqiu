@@ -7,11 +7,11 @@ from loguru import logger
 
 from scraper.api import (
     fetch_all_author_comments,
+    fetch_article_detail,
     fetch_article_list,
-    fetch_article_page,
 )
 from scraper.config import ScraperConfig
-from scraper.content import extract_article_html, html_to_markdown
+from scraper.content import html_to_markdown
 from scraper.models import (
     ArticleFull,
     ArticleSummary,
@@ -19,7 +19,6 @@ from scraper.models import (
     SyncManifestEntry,
 )
 from scraper.storage import (
-    build_article_path,
     load_manifest,
     save_article,
     save_manifest,
@@ -162,12 +161,12 @@ def _fetch_full_article(
     """
     user_id = summary.user_id or (summary.user.id if summary.user else config.user_id)
 
-    # Fetch article page HTML
-    page_html = fetch_article_page(client, user_id, summary.id)
+    # Fetch article detail via JSON API
+    detail = fetch_article_detail(client, summary.id)
     time.sleep(config.request_delay)
 
-    # Extract and convert content
-    content_html = extract_article_html(page_html)
+    # The API returns article HTML in the "text" field
+    content_html = detail.get("text", "")
     content_md = html_to_markdown(content_html)
 
     # Fetch author's supplementary notes
@@ -175,18 +174,19 @@ def _fetch_full_article(
         client,
         summary.id,
         user_id,
+        request_delay=config.request_delay,
     )
 
     return ArticleFull(
         id=summary.id,
-        title=summary.title,
+        title=detail.get("title", summary.title),
         content_html=content_html,
         content_markdown=content_md,
         created_at=summary.created_at,
         user_id=user_id,
-        view_count=summary.view_count,
-        like_count=summary.like_count,
-        reply_count=summary.reply_count,
-        retweet_count=summary.retweet_count,
+        view_count=detail.get("view_count", summary.view_count),
+        like_count=detail.get("fav_count", summary.like_count),
+        reply_count=detail.get("reply_count", summary.reply_count),
+        retweet_count=detail.get("retweet_count", summary.retweet_count),
         author_comments=author_comments,
     )

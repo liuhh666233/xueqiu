@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 DEFAULT_CONFIG_PATH = Path("config.yaml")
 DEFAULT_DATA_DIR = Path("data/articles")
 DEFAULT_USER_ID = 2426670165
-DEFAULT_REQUEST_DELAY = 2.0
+DEFAULT_REQUEST_DELAY = 3.0
 DEFAULT_PAGE_SIZE = 10
 
 

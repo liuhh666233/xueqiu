@@ -19,7 +19,7 @@ def main() -> None:
 @click.option(
     "--cookie",
     envvar="XUEQIU_COOKIE",
-    help="xq_a_token cookie value (or set XUEQIU_COOKIE env var).",
+    help="Full browser Cookie header string (or set XUEQIU_COOKIE env var).",
 )
 @click.option(
     "--config",
@@ -65,7 +65,7 @@ def sync(cookie: str | None, config_path: str | None, max_pages: int) -> None:
 @click.option(
     "--cookie",
     envvar="XUEQIU_COOKIE",
-    help="xq_a_token cookie value.",
+    help="Full browser Cookie header string.",
 )
 @click.option(
     "--config",

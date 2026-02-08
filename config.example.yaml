@@ -1,8 +1,9 @@
 # Xueqiu Scraper Configuration
 # Copy this file to config.yaml and fill in your cookie value.
 
-# xq_a_token cookie from your browser (required)
-cookie: "your_xq_a_token_here"
+# Full Cookie header string from browser DevTools → Network → Request Headers (required)
+# Example: "acw_tc=...; xq_a_token=...; u=..."
+cookie: "paste_full_cookie_string_here"
 
 # Xueqiu user ID to scrape
 user_id: 2426670165

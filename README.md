@@ -28,12 +28,14 @@ nix develop
 
 ## 获取 Cookie
 
-scraper 需要雪球的 `xq_a_token` cookie 来访问 API。获取步骤：
+scraper 需要浏览器的完整 Cookie 字符串来访问 API（雪球使用 WAF 防护，仅 `xq_a_token` 不够）。获取步骤：
 
 1. 用浏览器登录 [雪球](https://xueqiu.com/)
-2. 按 `F12` 打开开发者工具，切换到 **Application**（应用）标签页
-3. 左侧栏展开 **Cookies** → 点击 `https://xueqiu.com`
-4. 找到名为 `xq_a_token` 的 cookie，复制其 **Value** 值
+2. 按 `F12` 打开开发者工具，切换到 **Network**（网络）标签页
+3. 刷新页面，点击任意一个请求
+4. 在 **Request Headers** 中找到 `Cookie` 字段，复制其**完整值**
+
+复制出来的内容类似：`acw_tc=...; xq_a_token=...; u=...; ...`
 
 > cookie 有效期有限，过期后需要重新获取。可以用 `check-auth` 命令验证是否有效。
 
