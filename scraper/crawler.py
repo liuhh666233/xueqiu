@@ -1,9 +1,57 @@
 """Orchestrate article scraping: list → fetch → extract → save."""
 
+import random
 import time
 
 import httpx
 from loguru import logger
+
+# Take a longer break every BATCH_PAUSE_EVERY articles to look less robotic.
+BATCH_PAUSE_EVERY = 5
+BATCH_PAUSE_RANGE = (30.0, 60.0)
+
+
+class AdaptiveDelay:
+    """Self-adjusting delay with random jitter.
+
+    On success the delay slowly decreases back toward *min_delay*;
+    on failure (WAF hit, HTTP error) it doubles up to *max_delay*.
+    Each call to :meth:`wait` adds ±50 % jitter so consecutive
+    requests are never equally spaced.
+
+    Args:
+        base: Starting delay in seconds.
+        min_delay: Lower bound in seconds.
+        max_delay: Upper bound in seconds.
+        jitter: Fractional jitter range (0.5 → ±50 %).
+    """
+
+    def __init__(
+        self,
+        base: float,
+        min_delay: float = 3.0,
+        max_delay: float = 120.0,
+        jitter: float = 0.5,
+    ) -> None:
+        self.current = base
+        self.min_delay = min_delay
+        self.max_delay = max_delay
+        self.jitter = jitter
+
+    def success(self) -> None:
+        """Decrease delay after a successful request."""
+        self.current = max(self.min_delay, self.current * 0.9)
+
+    def failure(self) -> None:
+        """Increase delay after a failed / rate-limited request."""
+        self.current = min(self.max_delay, self.current * 2)
+
+    def wait(self) -> None:
+        """Sleep for the current delay with random jitter."""
+        delay = self.current * random.uniform(
+            1 - self.jitter, 1 + self.jitter
+        )
+        time.sleep(delay)
 
 from scraper.api import (
     fetch_all_author_comments,
@@ -45,8 +93,8 @@ def sync_articles(client: httpx.Client, config: ScraperConfig) -> int:
     downloaded = 0
     page = 1
     # Detail endpoint has stricter WAF limits than the list endpoint,
-    # so use a longer delay before each article fetch.
-    detail_delay = config.request_delay * 3
+    # so use a longer base delay before each article fetch.
+    delay = AdaptiveDelay(base=config.request_delay * 3)
 
     while True:
         logger.debug("Fetching article list page {}", page)
@@ -65,7 +113,17 @@ def sync_articles(client: httpx.Client, config: ScraperConfig) -> int:
             )
 
         for i, summary in enumerate(new_on_page, 1):
-            time.sleep(detail_delay)
+            # Batch pause: take a longer break every N articles
+            if downloaded > 0 and downloaded % BATCH_PAUSE_EVERY == 0:
+                pause = random.uniform(*BATCH_PAUSE_RANGE)
+                logger.info(
+                    "Batch pause after {} articles, sleeping {:.0f}s",
+                    downloaded,
+                    pause,
+                )
+                time.sleep(pause)
+
+            delay.wait()
             logger.info(
                 "[page {} {}/{}] Fetching: {} ({})",
                 page,
@@ -91,6 +149,7 @@ def sync_articles(client: httpx.Client, config: ScraperConfig) -> int:
                     )
                 )
                 downloaded += 1
+                delay.success()
 
             except httpx.HTTPStatusError as exc:
                 logger.error(
@@ -98,12 +157,14 @@ def sync_articles(client: httpx.Client, config: ScraperConfig) -> int:
                     summary.id,
                     exc,
                 )
+                delay.failure()
             except Exception as exc:
                 logger.error(
                     "Failed to process article {}: {}",
                     summary.id,
                     exc,
                 )
+                delay.failure()
 
         # Save manifest after each page to preserve progress
         save_manifest(config.data_dir, manifest)
@@ -208,10 +269,20 @@ def backfill_comments(client: httpx.Client, config: ScraperConfig) -> int:
 
     logger.info("{} article(s) need comment backfill", len(pending))
     backfilled = 0
-    detail_delay = config.request_delay * 3
+    delay = AdaptiveDelay(base=config.request_delay * 3)
 
     for article_id_str, entry in pending.items():
-        time.sleep(detail_delay)
+        # Batch pause
+        if backfilled > 0 and backfilled % BATCH_PAUSE_EVERY == 0:
+            pause = random.uniform(*BATCH_PAUSE_RANGE)
+            logger.info(
+                "Batch pause after {} articles, sleeping {:.0f}s",
+                backfilled,
+                pause,
+            )
+            time.sleep(pause)
+
+        delay.wait()
         article_id = int(article_id_str)
         user_id = manifest.user_id
 
@@ -232,6 +303,7 @@ def backfill_comments(client: httpx.Client, config: ScraperConfig) -> int:
                 article_id,
                 exc,
             )
+            delay.failure()
             continue
 
         file_path = Path(entry.file_path)
@@ -241,6 +313,7 @@ def backfill_comments(client: httpx.Client, config: ScraperConfig) -> int:
         entry.comments_fetched = True
         save_manifest(config.data_dir, manifest)
         backfilled += 1
+        delay.success()
 
     logger.info("Backfilled comments for {} article(s)", backfilled)
     return backfilled

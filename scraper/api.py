@@ -1,6 +1,7 @@
 """Xueqiu API endpoint wrappers."""
 
 import json
+import random
 import time
 
 import httpx
@@ -8,6 +9,7 @@ from loguru import logger
 
 MAX_RETRIES = 5
 RETRY_BASE_DELAY = 30.0
+RETRY_JITTER = 0.5  # ±50% randomisation on retry delays
 
 from scraper.models import (
     ArticleListResponse,
@@ -183,7 +185,20 @@ def _request_with_retry(
 
         # WAF / rate-limit: got HTML instead of JSON
         if attempt < MAX_RETRIES:
-            delay = RETRY_BASE_DELAY * attempt
+            # Honour Retry-After header when present
+            retry_after = resp.headers.get("Retry-After")
+            if retry_after:
+                try:
+                    base_delay = float(retry_after)
+                except ValueError:
+                    base_delay = RETRY_BASE_DELAY * attempt
+            else:
+                base_delay = RETRY_BASE_DELAY * attempt
+
+            # Add random jitter to avoid predictable retry patterns
+            delay = base_delay * random.uniform(
+                1 - RETRY_JITTER, 1 + RETRY_JITTER
+            )
             logger.warning(
                 "WAF rate-limit hit (attempt {}/{}), retrying in {:.0f}s...",
                 attempt,
