@@ -111,6 +111,7 @@ class ArticleFull(BaseModel):
     reply_count: int = 0
     retweet_count: int = 0
     author_comments: list[Comment] = Field(default_factory=list)
+    comments_fetch_failed: bool = False
 
     @property
     def created_datetime(self) -> datetime:
@@ -130,6 +131,7 @@ class SyncManifestEntry(BaseModel):
     title: str = ""
     file_path: str = ""
     synced_at: str = ""
+    comments_fetched: bool = True
 
 
 class SyncManifest(BaseModel):

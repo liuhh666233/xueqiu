@@ -124,6 +124,65 @@ def _clean_comment_text(text: str) -> str:
     return text.strip()
 
 
+def _format_comments_section(comments: list[Comment]) -> str:
+    """Format a list of comments as the ``## 补充说明`` Markdown section.
+
+    Args:
+        comments: Author comments to format.
+
+    Returns:
+        Formatted Markdown string including the section header.
+    """
+    lines = [
+        "",
+        "---",
+        "",
+        "## 补充说明",
+        "",
+    ]
+    for comment in comments:
+        comment_dt = comment.created_datetime
+        lines.append(f"### {comment_dt.strftime('%Y-%m-%d %H:%M')}")
+        lines.append("")
+        lines.append(_clean_comment_text(comment.text))
+        lines.append("")
+    return "\n".join(lines)
+
+
+def append_comments_to_article(file_path: Path, comments: list[Comment]) -> bool:
+    """Append author comments to an existing article Markdown file.
+
+    Skips if the file already contains a ``## 补充说明`` section or if
+    *comments* is empty.
+
+    Args:
+        file_path: Path to the article Markdown file.
+        comments: Author comments to append.
+
+    Returns:
+        True if comments were appended, False if skipped.
+    """
+    if not comments:
+        return False
+
+    if not file_path.exists():
+        logger.warning("Article file not found: {}", file_path)
+        return False
+
+    content = file_path.read_text(encoding="utf-8")
+
+    if "## 补充说明" in content:
+        logger.debug("Comments section already present in {}", file_path)
+        return False
+
+    section = _format_comments_section(comments)
+    content = content.rstrip("\n") + "\n" + section + "\n"
+    file_path.write_text(content, encoding="utf-8")
+
+    logger.info("Appended {} comment(s) to {}", len(comments), file_path)
+    return True
+
+
 def load_manifest(data_dir: Path) -> SyncManifest:
     """Load the sync manifest from disk.
 

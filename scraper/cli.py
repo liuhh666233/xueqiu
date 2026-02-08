@@ -6,7 +6,7 @@ from loguru import logger
 from scraper.api import check_auth
 from scraper.client import create_client
 from scraper.config import load_config
-from scraper.crawler import sync_articles
+from scraper.crawler import backfill_comments, sync_articles
 from scraper.storage import load_manifest
 
 
@@ -94,6 +94,49 @@ def check_auth_cmd(cookie: str | None, config_path: str | None) -> None:
     else:
         click.echo("Authentication failed. Cookie may be expired.")
         raise SystemExit(1)
+
+
+@main.command("backfill-comments")
+@click.option(
+    "--cookie",
+    envvar="XUEQIU_COOKIE",
+    help="Full browser Cookie header string (or set XUEQIU_COOKIE env var).",
+)
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(exists=False),
+    default=None,
+    help="Path to YAML config file.",
+)
+def backfill_comments_cmd(cookie: str | None, config_path: str | None) -> None:
+    """Re-fetch author comments for articles where the initial fetch failed."""
+    from pathlib import Path
+
+    cfg = load_config(
+        config_path=Path(config_path) if config_path else None,
+        cookie=cookie,
+    )
+
+    if not cfg.cookie:
+        raise click.UsageError(
+            "Cookie is required. Use --cookie, XUEQIU_COOKIE env var, "
+            "or set it in config.yaml."
+        )
+
+    manifest = load_manifest(cfg.data_dir)
+    pending = sum(1 for e in manifest.articles.values() if not e.comments_fetched)
+
+    if not pending:
+        click.echo("All articles have comments fetched. Nothing to backfill.")
+        return
+
+    click.echo(f"{pending} article(s) need comment backfill.")
+
+    with create_client(cfg.cookie) as client:
+        count = backfill_comments(client, cfg)
+
+    click.echo(f"Backfilled comments for {count} article(s).")
 
 
 @main.command()

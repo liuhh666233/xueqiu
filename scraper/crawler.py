@@ -18,6 +18,7 @@ from scraper.models import (
     SyncManifestEntry,
 )
 from scraper.storage import (
+    append_comments_to_article,
     load_manifest,
     save_article,
     save_manifest,
@@ -86,6 +87,7 @@ def sync_articles(client: httpx.Client, config: ScraperConfig) -> int:
                         synced_at=full.created_datetime.strftime(
                             "%Y-%m-%dT%H:%M:%S+08:00"
                         ),
+                        comments_fetched=not full.comments_fetch_failed,
                     )
                 )
                 downloaded += 1
@@ -157,6 +159,9 @@ def _fetch_full_article(
             "Failed to fetch comments for article {}: {}", summary.id, exc
         )
         author_comments = []
+        comments_failed = True
+    else:
+        comments_failed = False
 
     return ArticleFull(
         id=summary.id,
@@ -170,4 +175,72 @@ def _fetch_full_article(
         reply_count=detail.get("reply_count", summary.reply_count),
         retweet_count=detail.get("retweet_count", summary.retweet_count),
         author_comments=author_comments,
+        comments_fetch_failed=comments_failed,
     )
+
+
+def backfill_comments(client: httpx.Client, config: ScraperConfig) -> int:
+    """Re-fetch author comments for articles where the initial fetch failed.
+
+    Iterates through manifest entries with ``comments_fetched=False``,
+    fetches the comments, appends them to the existing Markdown file,
+    and updates the manifest.
+
+    Args:
+        client: Configured httpx client.
+        config: Scraper configuration.
+
+    Returns:
+        Number of articles that were backfilled.
+    """
+    from pathlib import Path
+
+    manifest = load_manifest(config.data_dir)
+    pending = {
+        aid: entry
+        for aid, entry in manifest.articles.items()
+        if not entry.comments_fetched
+    }
+
+    if not pending:
+        logger.info("No articles need comment backfill")
+        return 0
+
+    logger.info("{} article(s) need comment backfill", len(pending))
+    backfilled = 0
+    detail_delay = config.request_delay * 3
+
+    for article_id_str, entry in pending.items():
+        time.sleep(detail_delay)
+        article_id = int(article_id_str)
+        user_id = manifest.user_id
+
+        logger.info(
+            "Backfilling comments for: {} ({})", entry.title, article_id
+        )
+
+        try:
+            comments = fetch_all_author_comments(
+                client,
+                article_id,
+                user_id,
+                request_delay=config.request_delay,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to fetch comments for article {}: {}",
+                article_id,
+                exc,
+            )
+            continue
+
+        file_path = Path(entry.file_path)
+        if comments:
+            append_comments_to_article(file_path, comments)
+
+        entry.comments_fetched = True
+        save_manifest(config.data_dir, manifest)
+        backfilled += 1
+
+    logger.info("Backfilled comments for {} article(s)", backfilled)
+    return backfilled
