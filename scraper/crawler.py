@@ -301,6 +301,22 @@ def backfill_comments(client: httpx.Client, config: ScraperConfig) -> int:
                 user_id,
                 request_delay=config.request_delay,
             )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 405:
+                logger.warning(
+                    "Article {} got 405 Not Allowed — API may be temporarily "
+                    "blocking requests. Try again later with: "
+                    "python -m scraper.cli backfill-comments",
+                    article_id,
+                )
+            else:
+                logger.error(
+                    "Failed to fetch comments for article {}: {}",
+                    article_id,
+                    exc,
+                )
+            delay.failure()
+            continue
         except Exception as exc:
             logger.error(
                 "Failed to fetch comments for article {}: {}",
