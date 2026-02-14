@@ -31,3 +31,21 @@
 1. **Write docstrings for all public modules, functions, classes, methods**, and public-facing APIs.
 2. In docstrings:
    - **Do not include types in the `Args:` section**, type hints in signatures cover that.
+
+## Modules
+
+| Module | Rules file | Description |
+|--------|-----------|-------------|
+| models | `.claude/rules/models.md` | Pydantic v2 data models for API responses and sync manifest |
+| client | `.claude/rules/client.md` | HTTP client factory with cookie parsing and UA rotation |
+| api | `.claude/rules/api.md` | Xueqiu API endpoint wrappers with WAF-aware retry |
+| content | `.claude/rules/content.md` | HTML extraction and HTML-to-Markdown conversion |
+| storage | `.claude/rules/storage.md` | Markdown file writing, manifest persistence, filename utils |
+| crawler | `.claude/rules/crawler.md` | Orchestration: sync, backfill, adaptive delay |
+| cli | `.claude/rules/cli.md` | Click CLI commands (sync, status, check-auth, backfill-comments) |
+
+## Adding a New Module
+
+1. Create `.claude/rules/<module>.md` with `paths:` frontmatter listing all related source files
+2. Add an entry to the Modules table above
+3. Document: key files, architecture, design patterns, type mappings, testing conventions
